@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Бриф бизнеса</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --card:#fff; --ink:#1b1b1b; --muted:#6f6b63; --line:#e3dfd6;
+    --accent:#c8321e; --accent-ink:#fff; --soft:#fbeeea; --ok:#2e7d4f;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#141414; --card:#1d1d1d; --ink:#f1efe9; --muted:#9b978d; --line:#2f2f2f; --soft:#2a1a17;}
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font:16px/1.5 Inter,"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:720px;margin:0 auto;padding:28px 16px 64px}
+  header h1{font-size:28px;line-height:1.15;margin:0 0 8px;letter-spacing:-.01em}
+  header p{margin:0;color:var(--muted)}
+  .progress{margin:24px 0 20px}
+  .progress-top{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:8px}
+  .bar{height:6px;background:var(--line);border-radius:99px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px 20px}
+  .step{display:none}
+  .step.active{display:block;animation:in .25s ease}
+  @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .tag{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .step h2{font-size:22px;margin:4px 0 6px;line-height:1.2}
+  .lead{color:var(--muted);margin:0 0 20px;font-size:14px}
+  .fld{margin:0 0 20px}
+  .fld label{display:block;font-weight:600;margin-bottom:6px}
+  .fld.key label::after{content:"главный вопрос";margin-left:8px;font-size:11px;font-weight:700;color:var(--accent);background:var(--soft);padding:2px 8px;border-radius:99px;vertical-align:2px}
+  .fld.guard label::after{content:"защита от выдумок";margin-left:8px;font-size:11px;font-weight:700;color:var(--accent);background:var(--soft);padding:2px 8px;border-radius:99px;vertical-align:2px}
+  .hint{font-size:13px;color:var(--muted);margin:-2px 0 6px}
+  textarea,input[type=text]{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;resize:vertical;min-height:46px;transition:border-color .15s, box-shadow .15s}
+  textarea{min-height:72px}
+  textarea:focus,input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+  .fld.err textarea,.fld.err input{border-color:var(--accent)}
+  .errmsg{display:none;color:var(--accent);font-size:13px;margin-top:5px}
+  .fld.err .errmsg{display:block}
+  .tbd{margin-top:6px;background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+  .tbd:hover{color:var(--ink)}
+  .nav{display:flex;gap:12px;justify-content:space-between;margin-top:24px}
+  button.btn{font:inherit;font-weight:600;border-radius:12px;padding:13px 22px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+  button.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);margin-left:auto}
+  button.btn:disabled{opacity:.6;cursor:default}
+  .status{margin-top:14px;font-size:14px;color:var(--accent);min-height:20px}
+  .done{text-align:center;padding:36px 8px}
+  .done h2{font-size:24px;margin:0 0 8px}
+  .done p{color:var(--muted);margin:0}
+  .saved{font-size:12px;color:var(--muted);text-align:right;margin-top:10px}
+  @media (max-width:480px){
+    header h1{font-size:24px}
+    .card{padding:20px 16px}
+    button.btn{padding:13px 16px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Бриф бизнеса</h1>
+    <p>Семь коротких блоков — по несколько вопросов в каждом. Одна строка — один вопрос — один короткий ответ. Где ответа нет, пишите «нужно проверить».</p>
+  </header>
+
+  <div class="progress" id="progress">
+    <div class="progress-top"><span id="pLabel"></span><span id="pCount"></span></div>
+    <div class="bar"><i id="pBar"></i></div>
+  </div>
+
+  <form class="card" id="brief" novalidate>
+    <div id="steps"></div>
+    <div class="nav" id="nav">
+      <button type="button" class="btn" id="back">Назад</button>
+      <button type="button" class="btn primary" id="next">Далее</button>
+    </div>
+    <div class="status" id="status" role="status"></div>
+    <div class="saved" id="saved"></div>
+  </form>
+</div>
+
+<script>
+/* ===== НАСТРОЙКИ ===== */
+var CONFIG = {
+  // Адрес Cloudflare Worker, например https://brief.ваш-аккаунт.workers.dev
+  // Токен бота и chat_id хранятся в самом Worker, на странице их нет.
+  WORKER_URL: 'https://white-lab-0a51.rinjosten08.workers.dev/'
+};
+
+/* ===== ВОПРОСЫ ===== */
+var BLOCKS = [
+  { n:'01', title:'Бизнес-задача', lead:'Зачем нужен сайт и что он должен делать.', q:[
+    {id:'why_now',   t:'Зачем бизнесу сайт именно сейчас?'},
+    {id:'main_act',  t:'Какое действие сайт должен приводить чаще: запись, звонок, расчёт, покупка?'},
+    {id:'priority',  t:'Какое направление, география или сегмент в приоритете?'}
+  ]},
+  { n:'02', title:'Продукт и фокус', lead:'Что вы продаёте и что хотите продавать больше.', q:[
+    {id:'sells',     t:'Что именно продаёт бизнес?'},
+    {id:'formats',   t:'Какие продукты или форматы можно купить?'},
+    {id:'top_sold',  t:'Что покупают чаще всего?'},
+    {id:'want_more', t:'Что бизнес хочет продавать больше?'},
+    {id:'includes',  t:'Что входит в продукт? Какие есть ограничения?'}
+  ]},
+  { n:'03', title:'Клиент — первая гипотеза', lead:'Как вы сейчас представляете своего покупателя.', q:[
+    {id:'who_buys',  t:'Кто обычно покупает?'},
+    {id:'situation', t:'В какой ситуации он начинает искать решение?'},
+    {id:'important', t:'Что для него, предположительно, важно при выборе?'}
+  ]},
+  { n:'04', title:'Путь продажи', lead:'Что происходит с человеком от обращения до покупки.', q:[
+    {id:'first_contact', t:'Кто первым общается с человеком?'},
+    {id:'path',          t:'Как выглядит путь от первого обращения до покупки?'},
+    {id:'after_lead',    t:'Что происходит сразу после заявки?'},
+    {id:'deals_break',   t:'Где сделки чаще всего рвутся?', cls:'key', hint:'Самый важный ответ — напишите как есть, без смягчений.'}
+  ]},
+  { n:'05', title:'Ценность и доказательства', lead:'Чем вы сильны и что можете подтвердить.', q:[
+    {id:'valued',    t:'За что клиенты особенно ценят компанию?'},
+    {id:'different', t:'Что компания делает иначе и чем это доказать?'},
+    {id:'recommend', t:'За что компанию рекомендуют?'},
+    {id:'proof',     t:'Чем доказываем — что реально есть на руках?', hint:'Только то, что можно показать: цифры, кейсы, отзывы, сертификаты.'},
+    {id:'no_proof',  t:'Чего нет — обещать нельзя', cls:'guard', hint:'Чтобы мы не написали на сайте то, что вы не сможете подтвердить.'}
+  ]},
+  { n:'06', title:'Материалы и доступы', lead:'Что можно передать нам для работы.', q:[
+    {id:'access',    t:'Есть ли доступ к CRM, звонкам, перепискам, причинам отказа?'},
+    {id:'reviews',   t:'Какие отзывы, FAQ, звонки или переписки уже есть?'},
+    {id:'materials', t:'Есть ли сайт, презентации, прайс, документы, фото, рендеры?'}
+  ]},
+  { n:'07', title:'Контакты', lead:'Чтобы мы знали, чей это бриф, и могли уточнить ответы.', contacts:true, q:[
+    {id:'c_company', t:'Название компании', single:true},
+    {id:'c_contact', t:'Телефон или Telegram для связи', single:true}
+  ]}
+];
+
+var STORE = 'brief-draft-v1';
+var state = { step:0, a:{} };
+
+/* ===== ХРАНИЛИЩЕ (черновик) ===== */
+function load(){ try{ var d=JSON.parse(localStorage.getItem(STORE)||'null'); if(d&&d.a){state=d; if(state.step>=BLOCKS.length) state.step=0;} }catch(e){} }
+function save(){ try{ localStorage.setItem(STORE, JSON.stringify(state)); document.getElementById('saved').textContent='Черновик сохранён на этом устройстве'; }catch(e){} }
+function clearDraft(){ try{ localStorage.removeItem(STORE); }catch(e){} }
+
+/* ===== РЕНДЕР ===== */
+var $steps=document.getElementById('steps'), $back=document.getElementById('back'), $next=document.getElementById('next'),
+    $status=document.getElementById('status');
+
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+function build(){
+  var h='';
+  BLOCKS.forEach(function(b,i){
+    h+='<section class="step" data-i="'+i+'"><div class="tag">'+b.n+' · блок</div><h2>'+esc(b.title)+'</h2><p class="lead">'+esc(b.lead)+'</p>';
+    b.q.forEach(function(q){
+      var v=state.a[q.id]||'';
+      h+='<div class="fld '+(q.cls||'')+'" data-id="'+q.id+'"><label for="'+q.id+'">'+esc(q.t)+'</label>';
+      if(q.hint) h+='<div class="hint">'+esc(q.hint)+'</div>';
+      if(q.single) h+='<input type="text" id="'+q.id+'" value="'+esc(v)+'" autocomplete="off">';
+      else h+='<textarea id="'+q.id+'" rows="2">'+esc(v)+'</textarea>';
+      h+='<div class="errmsg">Заполните ответ или напишите «нужно проверить»</div>';
+      if(!q.single) h+='<button type="button" class="tbd" data-for="'+q.id+'">Не знаю — нужно проверить</button>';
+      h+='</div>';
+    });
+    h+='</section>';
+  });
+  h+='<section class="step done" id="doneStep"><h2>Спасибо, бриф отправлен</h2><p>Мы изучим ответы и свяжемся с вами.</p></section>';
+  $steps.innerHTML=h;
+}
+
+function show(i){
+  state.step=i;
+  var all=$steps.querySelectorAll('.step');
+  for(var k=0;k<all.length;k++) all[k].classList.toggle('active', k===i);
+  var total=BLOCKS.length;
+  document.getElementById('pLabel').textContent=BLOCKS[i].title;
+  document.getElementById('pCount').textContent='Блок '+(i+1)+' из '+total;
+  document.getElementById('pBar').style.width=(i/total*100)+'%';
+  $back.style.visibility=i===0?'hidden':'visible';
+  $next.textContent=i===total-1?'Отправить бриф':'Далее';
+  $status.textContent='';
+  save();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ===== ВАЛИДАЦИЯ ===== */
+function validate(i){
+  var ok=true, first=null;
+  BLOCKS[i].q.forEach(function(q){
+    var el=document.getElementById(q.id), box=el.closest('.fld');
+    var bad=!el.value.trim();
+    box.classList.toggle('err',bad);
+    if(bad){ ok=false; if(!first) first=el; }
+  });
+  if(first) first.focus();
+  return ok;
+}
+
+/* ===== ОТПРАВКА ===== */
+function collect(){
+  BLOCKS.forEach(function(b){ b.q.forEach(function(q){ state.a[q.id]=document.getElementById(q.id).value.trim(); }); });
+}
+function tgEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function messages(){
+  var c=BLOCKS[BLOCKS.length-1], a=state.a, out=[];
+  var head='<b>📋 Новый бриф</b>\n\n'+
+    '🏢 '+tgEsc(a.c_company)+'\n📞 '+tgEsc(a.c_contact)+
+    '\n🕒 '+new Date().toLocaleString('ru-RU');
+  out.push(head);
+  BLOCKS.slice(0,-1).forEach(function(b){
+    var t='<b>'+b.n+' · '+tgEsc(b.title).toUpperCase()+'</b>\n';
+    b.q.forEach(function(q){ t+='\n<b>'+tgEsc(q.t)+'</b>\n'+tgEsc(a[q.id])+'\n'; });
+    // лимит Telegram — 4096 знаков на сообщение
+    while(t.length>4000){ var cut=t.lastIndexOf('\n',4000); if(cut<500) cut=4000; out.push(t.slice(0,cut)); t=t.slice(cut); }
+    out.push(t);
+  });
+  return out;
+}
+
+function sendAll(msgs){
+  return fetch(CONFIG.WORKER_URL,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messages:msgs})
+  }).then(function(r){ return r.json().catch(function(){return {};}); })
+    .then(function(j){ if(!j.ok) throw new Error('сервер не принял бриф'); });
+}
+
+function submit(){
+  collect();
+  var msgs=messages();
+  $next.disabled=true; $back.disabled=true; $status.textContent='Отправляем…';
+  var p;
+  if(!CONFIG.WORKER_URL){
+    // Telegram ещё не подключён: показываем, что ушло бы, и считаем отправку успешной.
+    console.log('[Бриф — тестовый режим, Telegram не подключён]\n\n'+msgs.join('\n\n———\n\n'));
+    p=Promise.resolve();
+  } else {
+    p=sendAll(msgs);
+  }
+  p.then(function(){
+    clearDraft();
+    var all=$steps.querySelectorAll('.step');
+    for(var k=0;k<all.length;k++) all[k].classList.remove('active');
+    document.getElementById('doneStep').classList.add('active');
+    document.getElementById('nav').style.display='none';
+    document.getElementById('progress').style.display='none';
+    document.getElementById('saved').textContent='';
+    $status.textContent='';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }).catch(function(e){
+    $next.disabled=false; $back.disabled=false;
+    $status.textContent='Не удалось отправить: '+e.message+'. Ответы сохранены — попробуйте ещё раз.';
+  });
+}
+
+/* ===== СОБЫТИЯ ===== */
+$next.addEventListener('click',function(){
+  if(!validate(state.step)) return;
+  collect(); save();
+  if(state.step===BLOCKS.length-1) submit(); else show(state.step+1);
+});
+$back.addEventListener('click',function(){ collect(); if(state.step>0) show(state.step-1); });
+$steps.addEventListener('click',function(e){
+  var b=e.target.closest('.tbd'); if(!b) return;
+  var el=document.getElementById(b.getAttribute('data-for'));
+  el.value='нужно проверить'; el.closest('.fld').classList.remove('err'); state.a[el.id]=el.value; save();
+});
+$steps.addEventListener('input',function(e){
+  var el=e.target; if(!el.id) return;
+  state.a[el.id]=el.value;
+  el.closest('.fld').classList.remove('err');
+  clearTimeout(window._t); window._t=setTimeout(save,400);
+});
+
+load(); build(); show(state.step);
+</script>
+</body>
+</html>
