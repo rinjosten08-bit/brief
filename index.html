@@ -42,7 +42,7 @@
   .fld.err .errmsg{display:block}
   .tbd{margin-top:6px;background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
   .tbd:hover{color:var(--ink)}
-  .nav{display:flex;gap:12px;justify-content:space-between;margin-top:24px}
+  .nav{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;margin-top:24px}
   button.btn{font:inherit;font-weight:600;border-radius:12px;padding:13px 22px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
   button.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);margin-left:auto}
   button.btn:disabled{opacity:.6;cursor:default}
@@ -74,6 +74,7 @@
     <div id="steps"></div>
     <div class="nav" id="nav">
       <button type="button" class="btn" id="back">Назад</button>
+      <button type="button" class="btn" id="saveCopy" style="display:none">Сохранить ответы</button>
       <button type="button" class="btn primary" id="next">Далее</button>
     </div>
     <div class="status" id="status" role="status"></div>
@@ -176,6 +177,7 @@ function show(i){
   document.getElementById('pBar').style.width=(i/total*100)+'%';
   $back.style.visibility=i===0?'hidden':'visible';
   $next.textContent=i===total-1?'Отправить бриф':'Далее';
+  document.getElementById('saveCopy').style.display=i===total-1?'':'none';
   $status.textContent='';
   save();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -248,9 +250,32 @@ function submit(){
     window.scrollTo({top:0,behavior:'smooth'});
   }).catch(function(e){
     $next.disabled=false; $back.disabled=false;
-    $status.textContent='Не удалось отправить: '+e.message+'. Ответы сохранены — попробуйте ещё раз.';
+    $status.textContent='Не удалось отправить: '+e.message+'. Попробуйте ещё раз или нажмите «Сохранить ответы» и пришлите файл нам.';
   });
 }
+
+/* ===== КОПИЯ ОТВЕТОВ (файл .txt) ===== */
+function buildText(){
+  var a=state.a, L=['БРИФ БИЗНЕСА','Дата: '+new Date().toLocaleString('ru-RU'),''];
+  BLOCKS.forEach(function(b){
+    L.push(b.n+' · '+b.title.toUpperCase(),'');
+    b.q.forEach(function(q){
+      L.push(q.t, (a[q.id]||'—'), '');
+    });
+  });
+  return L.join('\r\n');
+}
+document.getElementById('saveCopy').addEventListener('click',function(){
+  collect(); save();
+  var blob=new Blob(['﻿'+buildText()],{type:'text/plain;charset=utf-8'});
+  var url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download='бриф-ответы.txt';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); },1000);
+  $status.style.color='var(--ok)';
+  $status.textContent='Файл «бриф-ответы.txt» сохранён. Его можно прислать нам.';
+  setTimeout(function(){ $status.style.color=''; },4000);
+});
 
 /* ===== СОБЫТИЯ ===== */
 $next.addEventListener('click',function(){
